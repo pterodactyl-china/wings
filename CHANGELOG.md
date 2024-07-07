@@ -1,5 +1,15 @@
 # Changelog
 
+## v1.11.14
+
+### Added
+
+* Support relative file paths for the Wings config ([#180](https://github.com/pterodactyl/wings/pull/180))
+
+### Fixed
+
+* Folders not being sorted before files properly ([#5078](https://github.com/pterodactyl/panel/issues/5078)
+
 ## v1.11.13
 
 ### Fixed
