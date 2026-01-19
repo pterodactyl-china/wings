@@ -447,18 +447,6 @@ func postServerDecompressFiles(c *gin.Context) {
 
 	s := middleware.ExtractServer(c)
 	lg := middleware.ExtractLogger(c).WithFields(log.Fields{"root_path": data.RootPath, "file": data.File})
-	lg.Debug("checking if space is available for file decompression")
-	err := s.Filesystem().SpaceAvailableForDecompression(context.Background(), data.RootPath, data.File)
-	if err != nil {
-		if filesystem.IsErrorCode(err, filesystem.ErrCodeUnknownArchive) {
-			lg.WithField("error", err).Warn("failed to decompress file: unknown archive format")
-			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "The archive provided is in a format Wings does not understand."})
-			return
-		}
-		middleware.CaptureAndAbort(c, err)
-		return
-	}
-
 	lg.Info("starting file decompression")
 	if err := s.Filesystem().DecompressFile(context.Background(), data.RootPath, data.File); err != nil {
 		// If the file is busy for some reason just return a nicer error to the user since there is not
