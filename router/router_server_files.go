@@ -451,7 +451,7 @@ func postServerDecompressFiles(c *gin.Context) {
 	// Check if there's enough space for decompression. This uses a 5-second timeout
 	// to avoid delays on large archives - if it times out, decompression proceeds
 	// with incremental space checking during extraction.
-	err := s.Filesystem().SpaceAvailableForDecompression(context.Background(), data.RootPath, data.File)
+	err := s.Filesystem().SpaceAvailableForDecompression(c.Request.Context(), data.RootPath, data.File)
 	if err != nil {
 		if filesystem.IsErrorCode(err, filesystem.ErrCodeUnknownArchive) {
 			lg.WithField("error", err).Warn("failed to decompress file: unknown archive format")
@@ -468,7 +468,7 @@ func postServerDecompressFiles(c *gin.Context) {
 	}
 
 	lg.Info("starting file decompression")
-	if err := s.Filesystem().DecompressFile(context.Background(), data.RootPath, data.File); err != nil {
+	if err := s.Filesystem().DecompressFile(c.Request.Context(), data.RootPath, data.File); err != nil {
 		if filesystem.IsErrorCode(err, filesystem.ErrCodeUnknownArchive) {
 			lg.WithField("error", err).Warn("failed to decompress file: unknown archive format")
 			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "The archive provided is in a format Wings does not understand."})

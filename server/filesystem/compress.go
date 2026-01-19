@@ -127,9 +127,9 @@ func (fs *Filesystem) SpaceAvailableForDecompression(ctx context.Context, dir st
 
 		select {
 		case <-timeoutCtx.Done():
-			// If timeout or context canceled, stop walking.
-			// For timeout specifically, we'll allow decompression to proceed
-			// since space will be checked incrementally during extraction anyway.
+			// Stop walking if the timeout is reached or context is canceled.
+			// We'll check below whether to ignore the error (for timeouts)
+			// or propagate it (for cancellations).
 			return timeoutCtx.Err()
 		default:
 			info, err := d.Info()
