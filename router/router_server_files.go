@@ -449,6 +449,11 @@ func postServerDecompressFiles(c *gin.Context) {
 	lg := middleware.ExtractLogger(c).WithFields(log.Fields{"root_path": data.RootPath, "file": data.File})
 	lg.Info("starting file decompression")
 	if err := s.Filesystem().DecompressFile(context.Background(), data.RootPath, data.File); err != nil {
+		if filesystem.IsErrorCode(err, filesystem.ErrCodeUnknownArchive) {
+			lg.WithField("error", err).Warn("failed to decompress file: unknown archive format")
+			c.AbortWithStatusJSON(http.StatusBadRequest, gin.H{"error": "The archive provided is in a format Wings does not understand."})
+			return
+		}
 		// If the file is busy for some reason just return a nicer error to the user since there is not
 		// much we specifically can do. They'll need to stop the running server process in order to overwrite
 		// a file like this.
