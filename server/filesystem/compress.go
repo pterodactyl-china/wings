@@ -221,8 +221,11 @@ func decodeFilename(filename string) string {
 
 	// Not valid UTF-8, try to decode as GBK using a decoder from the pool
 	decoder := gbkDecoderPool.Get().(*encoding.Decoder)
-	defer gbkDecoderPool.Put(decoder)
-	
+	defer func() {
+		decoder.Reset()
+		gbkDecoderPool.Put(decoder)
+	}()
+
 	decoded, err := decoder.String(filename)
 	if err != nil {
 		// GBK decoding failed, return original
