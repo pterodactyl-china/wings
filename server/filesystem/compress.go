@@ -10,10 +10,12 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+	"unicode/utf8"
 
 	"emperror.dev/errors"
 	"github.com/klauspost/compress/zip"
 	"github.com/mholt/archives"
+	"golang.org/x/text/encoding/simplifiedchinese"
 
 	"github.com/pterodactyl/wings/internal/ufs"
 	"github.com/pterodactyl/wings/server/filesystem/archiverext"
@@ -190,6 +192,33 @@ type extractStreamOptions struct {
 	Reader io.Reader
 }
 
+// decodeFilename attempts to decode a filename from an archive, automatically
+// detecting and converting GBK-encoded filenames to UTF-8. This is necessary
+// because many Windows applications in China create ZIP files with GBK-encoded
+// filenames instead of UTF-8.
+//
+// The function uses a simple but effective heuristic:
+// - If the filename is valid UTF-8, return it as-is
+// - If the filename is not valid UTF-8, attempt to decode it as GBK
+// - If GBK decoding fails, return the original filename
+func decodeFilename(filename string) string {
+	// Check if it's already valid UTF-8
+	if utf8.ValidString(filename) {
+		// Valid UTF-8, return as-is
+		return filename
+	}
+
+	// Not valid UTF-8, try to decode as GBK
+	decoded, err := simplifiedchinese.GBK.NewDecoder().String(filename)
+	if err != nil {
+		// GBK decoding failed, return original
+		return filename
+	}
+
+	// Successfully decoded from GBK
+	return decoded
+}
+
 func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptions) error {
 	// See if it's a compressed archive, such as TAR or a ZIP
 	ex, ok := opts.Format.(archives.Extractor)
@@ -261,7 +290,9 @@ func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptio
 		if f.IsDir() {
 			return nil
 		}
-		p := filepath.Join(opts.Directory, f.NameInArchive)
+		// Decode the filename, converting from GBK to UTF-8 if necessary
+		decodedName := decodeFilename(f.NameInArchive)
+		p := filepath.Join(opts.Directory, decodedName)
 		// If it is ignored, just don't do anything with the file and skip over it.
 		if err := fs.IsIgnored(p); err != nil {
 			return nil
