@@ -23,6 +23,7 @@ services:
       - "/var/log/pterodactyl/:/var/log/pterodactyl/"
       - "/tmp/pterodactyl/:/tmp/pterodactyl/"
       - "/etc/ssl/certs:/etc/ssl/certs:ro"
+	  - "/run/wings:/run/wings"
       # 如果你是从旧的守护进程升级，你可能需要映射 /srv/daemon-data
       #- "/srv/daemon-data/:/srv/daemon-data/"
       # 如果您使用了 let's encrypt，则必须启用 ssl 并映射该目录。

@@ -1,24 +1,30 @@
 # Changelog
 
-## v1.11.14
+## v1.12.1
+### Added
+* Add mount for /etc/machine-id for servers for Hytale ([#292](https://github.com/pterodactyl/wings/pull/292))
+
+## v1.12.0
+### Fixed
+* [CVE-2025-68954](https://github.com/pterodactyl/panel/security/advisories/GHSA-8c39-xppg-479c)
+* [CVE-2025-69199](https://github.com/pterodactyl/panel/security/advisories/GHSA-8w7m-w749-rx98)
+* [CVE-2026-21696](https://github.com/pterodactyl/wings/security/advisories/GHSA-2497-gp99-2m74)
+* Fixes folders not being sorted before files when returning list of directory contents ([#5078](https://github.com/pterodactyl/panel/issues/5078))
+* User-defined labels not being passed to environment ([#191](https://github.com/pterodactyl/wings/pulls/191))
+* Fixes handling of termination signals for containers ([#192](https://github.com/pterodactyl/wings/pulls/192))
+* Fixes logic to use base2 (1024, *bibyte) when calculating memory limits ([#190](https://github.com/pterodactyl/wings/pulls/190))
+* Fixes hard-links being counted multiple times when calculating disk usage ([#181](https://github.com/pterodactyl/wings/pulls/181))
 
 ### Added
-
 * Support relative file paths for the Wings config ([#180](https://github.com/pterodactyl/wings/pull/180))
-
-### Fixed
-
-* Folders not being sorted before files properly ([#5078](https://github.com/pterodactyl/panel/issues/5078)
+* Support mounting generated `/etc/passwd` files to containers ([#197](https://github.com/pterodactyl/wings/pulls/197))
 
 ## v1.11.13
-
 ### Fixed
-
 * Auto-configure not working ([#5087](https://github.com/pterodactyl/panel/issues/5087))
 * Individual files unable to be decompressed ([#5034](https://github.com/pterodactyl/panel/issues/5034))
 
 ## v1.11.12
-
 ### Fixed
 * Arbitrary File Write/Read ([GHSA-gqmf-jqgv-v8fw](https://github.com/pterodactyl/wings/security/advisories/GHSA-gqmf-jqgv-v8fw))
 * Server-side Request Forgery (SSRF) during remote file pull ([GHSA-qq22-jj8x-4wwv](https://github.com/pterodactyl/wings/security/advisories/GHSA-qq22-jj8x-4wwv))

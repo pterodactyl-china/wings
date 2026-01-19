@@ -177,11 +177,11 @@ type SystemConfiguration struct {
 	Passwd struct {
 		// Enable controls whether generated passwd files should be mounted into containers.
 		//
-		// By default this option is disabled and Wings will not mount any additional passwd
-		// files into containers.
+		// By default this option is disabled and Wings will not mount any
+		// additional passwd files into containers.
 		Enable bool `yaml:"enabled" default:"false"`
 
-		// Directory is the directory on disk where the generated files will be stored.
+		// Directory is the directory on disk where the generated passwd files will be stored.
 		// This directory may be temporary as it will be re-created whenever Wings is started.
 		//
 		// This path **WILL** be both written to by Wings and mounted into containers created by
@@ -191,6 +191,26 @@ type SystemConfiguration struct {
 		// correct SELinux context in order for containers to use it.
 		Directory string `yaml:"directory" default:"/run/wings/etc"`
 	} `yaml:"passwd"`
+
+	// MachineID controls the mounting of a generated `/etc/machine-id` file into containers started by Wings.
+	MachineID struct {
+		// Enable controls whether a generated machine-id file should be mounted
+		// into containers.
+		//
+		// By default this option is enabled and Wings will mount an additional
+		// machine-id file into containers.
+		Enable bool `yaml:"enabled" default:"true"`
+
+		// Directory is the directory on disk where the generated machine-id files will be stored.
+		// This directory may be temporary as it will be re-created whenever Wings is started.
+		//
+		// This path **WILL** be both written to by Wings and mounted into containers created by
+		// Wings. If you are running Wings itself in a container, this path will need to be mounted
+		// into the Wings container as the exact path on the host, which should match the value
+		// specified here. If you are using SELinux, you will need to make sure this file has the
+		// correct SELinux context in order for containers to use it.
+		Directory string `yaml:"directory" default:"/run/wings/machine-id"`
+	} `yaml:"machine_id"`
 
 	// The amount of time in seconds that can elapse before a server's disk space calculation is
 	// considered stale and a re-check should occur. DANGER: setting this value too low can seriously
@@ -359,6 +379,12 @@ type Configuration struct {
 // This function does not modify the currently stored global configuration.
 func NewAtPath(path string) (*Configuration, error) {
 	var c Configuration
+	// Configures the default values for many of the configuration options present
+	// in the structs. Values set in the configuration file take priority over the
+	// default values.
+	if err := defaults.Set(&c); err != nil {
+		return nil, err
+	}
 	// Track the location where we created this configuration.
 	c.path = path
 	return &c, nil
@@ -570,13 +596,6 @@ func FromFile(path string) error {
 		return err
 	}
 
-	// Configures the default values for many of the configuration options present
-	// in the structs. Values set in the configuration file will not be overridden by the
-	// default values.
-	if err := defaults.Set(c); err != nil {
-		return err
-	}
-
 	c.Token = Token{
 		ID:    os.Getenv("WINGS_TOKEN_ID"),
 		Token: os.Getenv("WINGS_TOKEN"),
@@ -635,6 +654,11 @@ func ConfigureDirectories() error {
 		return err
 	}
 
+	log.WithField("path", _config.System.TmpDirectory).Debug("ensuring temporary data directory exists")
+	if err := os.MkdirAll(_config.System.TmpDirectory, 0o700); err != nil {
+		return err
+	}
+
 	log.WithField("path", _config.System.ArchiveDirectory).Debug("ensuring archive data directory exists")
 	if err := os.MkdirAll(_config.System.ArchiveDirectory, 0o700); err != nil {
 		return err
@@ -648,6 +672,13 @@ func ConfigureDirectories() error {
 	if _config.System.Passwd.Enable {
 		log.WithField("path", _config.System.Passwd.Directory).Debug("ensuring passwd directory exists")
 		if err := os.MkdirAll(_config.System.Passwd.Directory, 0o755); err != nil {
+			return err
+		}
+	}
+
+	if _config.System.MachineID.Enable {
+		log.WithField("path", _config.System.MachineID.Directory).Debug("ensuring machine-id directory exists")
+		if err := os.MkdirAll(_config.System.MachineID.Directory, 0o755); err != nil {
 			return err
 		}
 	}
