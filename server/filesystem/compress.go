@@ -8,6 +8,7 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 	"unicode/utf8"
@@ -16,14 +17,20 @@ import (
 	"github.com/klauspost/compress/zip"
 	"github.com/mholt/archives"
 	"golang.org/x/text/encoding/simplifiedchinese"
+	"golang.org/x/text/encoding"
 
 	"github.com/pterodactyl/wings/internal/ufs"
 	"github.com/pterodactyl/wings/server/filesystem/archiverext"
 )
 
-// gbkDecoder is a reusable GBK decoder instance to avoid allocating a new decoder
-// for every file when processing archives with GBK-encoded filenames.
-var gbkDecoder = simplifiedchinese.GBK.NewDecoder()
+// gbkDecoderPool provides a pool of reusable GBK decoder instances to avoid
+// allocating a new decoder for every file when processing archives with
+// GBK-encoded filenames. This is both memory-efficient and thread-safe.
+var gbkDecoderPool = sync.Pool{
+	New: func() interface{} {
+		return simplifiedchinese.GBK.NewDecoder()
+	},
+}
 
 // CompressFiles compresses all the files matching the given paths in the
 // specified directory. This function also supports passing nested paths to only
@@ -212,8 +219,11 @@ func decodeFilename(filename string) string {
 		return filename
 	}
 
-	// Not valid UTF-8, try to decode as GBK using the reusable decoder
-	decoded, err := gbkDecoder.String(filename)
+	// Not valid UTF-8, try to decode as GBK using a decoder from the pool
+	decoder := gbkDecoderPool.Get().(*encoding.Decoder)
+	defer gbkDecoderPool.Put(decoder)
+	
+	decoded, err := decoder.String(filename)
 	if err != nil {
 		// GBK decoding failed, return original
 		return filename
