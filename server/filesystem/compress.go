@@ -21,6 +21,10 @@ import (
 	"github.com/pterodactyl/wings/server/filesystem/archiverext"
 )
 
+// gbkDecoder is a reusable GBK decoder instance to avoid allocating a new decoder
+// for every file when processing archives with GBK-encoded filenames.
+var gbkDecoder = simplifiedchinese.GBK.NewDecoder()
+
 // CompressFiles compresses all the files matching the given paths in the
 // specified directory. This function also supports passing nested paths to only
 // compress certain files and folders when working in a larger directory. This
@@ -208,8 +212,8 @@ func decodeFilename(filename string) string {
 		return filename
 	}
 
-	// Not valid UTF-8, try to decode as GBK
-	decoded, err := simplifiedchinese.GBK.NewDecoder().String(filename)
+	// Not valid UTF-8, try to decode as GBK using the reusable decoder
+	decoded, err := gbkDecoder.String(filename)
 	if err != nil {
 		// GBK decoding failed, return original
 		return filename
