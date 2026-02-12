@@ -98,6 +98,8 @@ func (fs *Filesystem) archiverFileSystem(ctx context.Context, p string) (iofs.FS
 
 // SpaceAvailableForDecompression looks through a given archive and determines
 // if decompressing it would put the server over its allocated disk space limit.
+// To avoid long delays on large archives, this function will timeout after 5 seconds
+// and allow decompression to proceed (space will still be checked incrementally during extraction).
 func (fs *Filesystem) SpaceAvailableForDecompression(ctx context.Context, dir string, file string) error {
 	// Don't waste time trying to determine this if we know the server will have the space for
 	// it since there is no limit.
@@ -113,16 +115,22 @@ func (fs *Filesystem) SpaceAvailableForDecompression(ctx context.Context, dir st
 		return err
 	}
 
+	// Create a context with timeout to prevent long delays on large archives
+	timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+
 	var size atomic.Int64
-	return iofs.WalkDir(fsys, ".", func(path string, d iofs.DirEntry, err error) error {
+	err = iofs.WalkDir(fsys, ".", func(path string, d iofs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
 
 		select {
-		case <-ctx.Done():
-			// Stop walking if the context is canceled.
-			return ctx.Err()
+		case <-timeoutCtx.Done():
+			// Stop walking if the timeout is reached or context is canceled.
+			// We'll check below whether to ignore the error (for timeouts)
+			// or propagate it (for cancellations).
+			return timeoutCtx.Err()
 		default:
 			info, err := d.Info()
 			if err != nil {
@@ -134,6 +142,14 @@ func (fs *Filesystem) SpaceAvailableForDecompression(ctx context.Context, dir st
 			return nil
 		}
 	})
+
+	// If the error is a timeout, ignore it and allow decompression to proceed.
+	// Space will still be checked incrementally during the actual extraction.
+	if errors.Is(err, context.DeadlineExceeded) {
+		return nil
+	}
+
+	return err
 }
 
 // DecompressFile will decompress a file in a given directory by using the
