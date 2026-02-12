@@ -13,7 +13,6 @@ import (
 	"unicode/utf8"
 
 	"emperror.dev/errors"
-	"github.com/klauspost/compress/zip"
 	"github.com/mholt/archives"
 	"golang.org/x/text/encoding/simplifiedchinese"
 
@@ -81,11 +80,10 @@ func (fs *Filesystem) archiverFileSystem(ctx context.Context, p string) (iofs.FS
 	if format != nil {
 		switch ff := format.(type) {
 		case archives.Zip:
-			// zip.Reader is more performant than ArchiveFS, because zip.Reader caches content information
-			// and zip.Reader can open several content files concurrently because of io.ReaderAt requirement
-			// while ArchiveFS can't.
-			// zip.Reader doesn't suffer from issue #330 and #310 according to local test (but they should be fixed anyway)
-			return zip.NewReader(f, info.Size())
+			// Use our custom ZipFS wrapper that handles GBK-encoded filenames
+			// This is more performant than ArchiveFS, because it caches content information
+			// and can open several content files concurrently because of io.ReaderAt requirement.
+			return archiverext.NewZipFS(f, info.Size())
 		case archives.Extraction:
 			return &archives.ArchiveFS{Stream: io.NewSectionReader(f, 0, info.Size()), Format: ff, Context: ctx}, nil
 		case archives.Compression:
