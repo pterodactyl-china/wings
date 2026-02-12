@@ -117,10 +117,10 @@ func TestDecodeFilename(t *testing.T) {
 			utf8String := "测试文件.txt"
 			gbkString, err := simplifiedchinese.GBK.NewEncoder().String(utf8String)
 			g.Assert(err).IsNil()
-			
+
 			// Verify it's not valid UTF-8
 			g.Assert(utf8.ValidString(gbkString)).IsFalse()
-			
+
 			// Decode and verify it matches original UTF-8
 			output := decodeFilename(gbkString)
 			g.Assert(output).Equal(utf8String)

@@ -24,13 +24,13 @@ func NewZipFS(r io.ReaderAt, size int64) (*ZipFS, error) {
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Keep a reference to the underlying file if it's a Closer
 	var closer io.Closer
 	if c, ok := r.(io.Closer); ok {
 		closer = c
 	}
-	
+
 	return &ZipFS{reader: zr, file: closer}, nil
 }
 
@@ -86,7 +86,7 @@ func (z *ZipFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	// For zip files, we need to build the directory listing
 	// by examining all files and filtering by prefix
 	var entries []fs.DirEntry
-	
+
 	// Normalize the directory name
 	if name == "." {
 		name = ""
@@ -97,7 +97,7 @@ func (z *ZipFS) ReadDir(name string) ([]fs.DirEntry, error) {
 	seen := make(map[string]bool)
 	for _, f := range z.reader.File {
 		decodedName := decodeZipFilename(f.Name)
-		
+
 		// Skip files not in this directory
 		if name != "" && !hasPrefix(decodedName, name) {
 			continue
