@@ -129,8 +129,9 @@ func (z *ZipFS) ReadDir(name string) ([]fs.DirEntry, error) {
 		}
 		seen[entryName] = true
 
-		// Determine if this entry is a directory
-		isDir := idx >= 0 && idx < len(relPath)-1
+		// Determine if this entry is a directory by checking if there's more path after it
+		// or if the original file is marked as a directory
+		isDir := idx >= 0 || f.FileInfo().IsDir()
 
 		entries = append(entries, &zipDirEntry{
 			name:  entryName,
@@ -223,4 +224,4 @@ func (i *zipRootInfo) Size() int64        { return 0 }
 func (i *zipRootInfo) Mode() fs.FileMode  { return fs.ModeDir | 0755 }
 func (i *zipRootInfo) ModTime() time.Time { return time.Time{} }
 func (i *zipRootInfo) IsDir() bool        { return true }
-func (i *zipRootInfo) Sys() interface{}   { return nil }
+func (i *zipRootInfo) Sys() any           { return nil }
