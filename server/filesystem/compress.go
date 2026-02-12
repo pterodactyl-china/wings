@@ -112,6 +112,11 @@ func (fs *Filesystem) SpaceAvailableForDecompression(ctx context.Context, dir st
 		}
 		return err
 	}
+	
+	// Close the filesystem after we're done to release file handles
+	if closer, ok := fsys.(io.Closer); ok {
+		defer closer.Close()
+	}
 
 	// Create a context with timeout to prevent long delays on large archives
 	timeoutCtx, cancel := context.WithTimeout(ctx, 5*time.Second)

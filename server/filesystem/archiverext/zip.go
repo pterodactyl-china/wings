@@ -15,6 +15,7 @@ import (
 // (common in Chinese Windows systems) by converting them to UTF-8.
 type ZipFS struct {
 	reader *zip.Reader
+	file   io.Closer
 }
 
 // NewZipFS creates a new ZipFS from a ReaderAt and size.
@@ -23,7 +24,22 @@ func NewZipFS(r io.ReaderAt, size int64) (*ZipFS, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &ZipFS{reader: zr}, nil
+	
+	// Keep a reference to the underlying file if it's a Closer
+	var closer io.Closer
+	if c, ok := r.(io.Closer); ok {
+		closer = c
+	}
+	
+	return &ZipFS{reader: zr, file: closer}, nil
+}
+
+// Close closes the underlying file if it's a Closer.
+func (z *ZipFS) Close() error {
+	if z.file != nil {
+		return z.file.Close()
+	}
+	return nil
 }
 
 // Open opens the named file from the ZIP archive.
