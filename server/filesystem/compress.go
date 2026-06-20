@@ -52,46 +52,51 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (ufs.FileInfo, e
 	return f.Stat()
 }
 
-func (fs *Filesystem) archiverFileSystem(ctx context.Context, p string) (iofs.FS, error) {
+func (fs *Filesystem) archiverFileSystem(ctx context.Context, p string) (iofs.FS, io.Closer, error) {
 	f, err := fs.unixFS.Open(p)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	// Do not use defer to close `f`, it will likely be used later.
 
 	format, _, err := archives.Identify(ctx, filepath.Base(p), f)
 	if err != nil && !errors.Is(err, archives.NoMatch) {
 		_ = f.Close()
-		return nil, err
+		return nil, nil, err
 	}
 
 	// Reset the file reader.
 	if _, err := f.Seek(0, io.SeekStart); err != nil {
 		_ = f.Close()
-		return nil, err
+		return nil, nil, err
 	}
 
 	info, err := f.Stat()
 	if err != nil {
 		_ = f.Close()
-		return nil, err
+		return nil, nil, err
 	}
 
 	if format != nil {
 		switch ff := format.(type) {
 		case archives.Zip:
-			// Use our custom ZipFS wrapper that handles GBK-encoded filenames
+			// Use our custom ZipFS wrapper that handles GBK-encoded filenames.
 			// This is more performant than ArchiveFS, because it caches content information
 			// and can open several content files concurrently because of io.ReaderAt requirement.
-			return archiverext.NewZipFS(f, info.Size())
+			zipfs, err := archiverext.NewZipFS(f, info.Size())
+			if err != nil {
+				_ = f.Close()
+				return nil, nil, err
+			}
+			return zipfs, zipfs, nil
 		case archives.Extraction:
-			return &archives.ArchiveFS{Stream: io.NewSectionReader(f, 0, info.Size()), Format: ff, Context: ctx}, nil
+			return &archives.ArchiveFS{Stream: io.NewSectionReader(f, 0, info.Size()), Format: ff, Context: ctx}, f, nil
 		case archives.Compression:
-			return archiverext.FileFS{File: f, Compression: ff}, nil
+			return archiverext.FileFS{File: f, Compression: ff}, f, nil
 		}
 	}
 	_ = f.Close()
-	return nil, archives.NoMatch
+	return nil, nil, archives.NoMatch
 }
 
 // SpaceAvailableForDecompression looks through a given archive and determines
@@ -105,13 +110,14 @@ func (fs *Filesystem) SpaceAvailableForDecompression(ctx context.Context, dir st
 		return nil
 	}
 
-	fsys, err := fs.archiverFileSystem(ctx, filepath.Join(dir, file))
+	fsys, archive, err := fs.archiverFileSystem(ctx, filepath.Join(dir, file))
 	if err != nil {
 		if errors.Is(err, archives.NoMatch) {
 			return newFilesystemError(ErrCodeUnknownArchive, err)
 		}
 		return err
 	}
+	defer archive.Close()
 
 	// Close the filesystem after we're done to release file handles
 	if closer, ok := fsys.(io.Closer); ok {
@@ -318,7 +324,7 @@ func (fs *Filesystem) extractStream(ctx context.Context, opts extractStreamOptio
 		// Create directories explicitly; an empty one has no file to create it
 		// implicitly and would otherwise be dropped during extraction.
 		if f.IsDir() {
-			if err := fs.unixFS.MkdirAll(p, 0o755); err != nil {
+			if err := fs.mkdirAll(p, 0o755); err != nil {
 				return wrapError(err, opts.FileName)
 			}
 			return nil
