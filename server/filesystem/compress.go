@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	iofs "io/fs"
+	"math"
 	"path"
 	"path/filepath"
 	"strings"
@@ -44,7 +45,7 @@ func (fs *Filesystem) CompressFiles(dir string, paths []string) (ufs.FileInfo, e
 	if err := a.Stream(context.Background(), cw); err != nil {
 		return nil, err
 	}
-	if !fs.unixFS.CanFit(cw.BytesWritten()) {
+	if cw.BytesWritten() < 0 || !fs.unixFS.CanFit(cw.BytesWritten()) {
 		_ = fs.unixFS.Remove(d)
 		return nil, newFilesystemError(ErrCodeDiskSpace, nil)
 	}
@@ -145,9 +146,19 @@ func (fs *Filesystem) SpaceAvailableForDecompression(ctx context.Context, dir st
 			if err != nil {
 				return err
 			}
-			if !fs.unixFS.CanFit(size.Add(info.Size())) {
+			fileSize := info.Size()
+			if fileSize <= 0 {
+				return nil
+			}
+			current := size.Load()
+			if fileSize > math.MaxInt64-current {
 				return newFilesystemError(ErrCodeDiskSpace, nil)
 			}
+			next := current + fileSize
+			if !fs.unixFS.CanFit(next) {
+				return newFilesystemError(ErrCodeDiskSpace, nil)
+			}
+			size.Store(next)
 			return nil
 		}
 	})
