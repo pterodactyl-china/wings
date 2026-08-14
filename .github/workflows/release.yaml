@@ -32,8 +32,8 @@ jobs:
           VERSION: ${{ github.ref_name }}
         run: |
           BRANCH=release/${{ env.VERSION }}
-          git config --local user.email "ci@pterodactyl.io"
-          git config --local user.name "Pterodactyl CI"
+          git config --local user.email "ci@pterodactyl.top"
+          git config --local user.name "Pterodactyl China CI"
           git checkout -b $BRANCH
           git push -u origin $BRANCH
           sed -i "s/var Version = \".*\"/var Version = \"${VERSION:1}\"/" system/const.go
@@ -55,30 +55,16 @@ jobs:
           files: |
             dist/*
 
-      # Update the release manifest in the pterodactyl-china/.github repository
-      # (releases/latest.json). The release above is still a draft, so the
-      # version cannot be read off the API. GITHUB_TOKEN deliberately cannot be
-      # used here: it has no access to another repository. CDN_DISPATCH_TOKEN
-      # must therefore be a PAT with write access to pterodactyl-china/.github.
-      - name: Update release manifest (pterodactyl-china/.github)
-        if: ${{ !contains(github.ref_name, 'rc') && !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'alpha') }}
+      # 通知版本清单仓库 pterodactyl-china/.github，由它更新
+      # https://api.pterodactyl.top/releases/latest.json 中的 wings 版本。
+      # 上面创建的是 draft release，清单仓库无法通过 API 读到版本号，只能由这里主动告知。
+      # GITHUB_TOKEN 无法跨仓库使用，需要 CDN_DISPATCH_TOKEN（对 .github 仓库有 Contents: Read and write 的 PAT）。
+      - name: Update release manifest
+        if: ${{ secrets.CDN_DISPATCH_TOKEN != '' && !contains(github.ref_name, 'rc') && !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'alpha') }}
         env:
-          GH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
+          GH_TOKEN: ${{ secrets.CDN_DISPATCH_TOKEN }}
           VERSION: ${{ github.ref_name }}
         run: |
-          # Normalise the tag (e.g. v1.13.1.0) to the manifest format (1.13.1.0).
-          VERSION="${VERSION#v}"
-
-          # Fetch the current manifest and its blob SHA from the main branch.
-          MANIFEST="$(gh api repos/pterodactyl-china/.github/contents/releases/latest.json)"
-          SHA="$(jq -r .sha <<<"$MANIFEST")"
-
-          # Update the "wings" field and re-encode the payload to base64.
-          CONTENT="$(jq -r .content <<<"$MANIFEST" | base64 -d | jq --arg v "$VERSION" '.wings = $v' | base64 -w 0)"
-
-          # Commit the updated manifest back to the main branch.
-          gh api -X PUT repos/pterodactyl-china/.github/contents/releases/latest.json \
-            -f message="chore(release): bump wings version to ${VERSION}" \
-            -f content="$CONTENT" \
-            -f sha="$SHA" \
-            -f branch="main"
+          jq -n --arg version "$VERSION" \
+            '{event_type: "release-tagged", client_payload: {component: "wings", version: $version}}' \
+            | gh api repos/pterodactyl-china/.github/dispatches --input -
