@@ -55,17 +55,30 @@ jobs:
           files: |
             dist/*
 
-      # Hand the tagged version to pterodactyl/pterodactyl-cdn, which publishes
-      # https://cdn.pterodactyl.io/releases/latest.json. It can't read the
-      # version off the API itself, because the release above is still a draft.
-      # GITHUB_TOKEN deliberately cannot be used here: it has no access to
-      # another repository.
-      - name: Update CDN release manifest
+      # Update the release manifest in the pterodactyl-china/.github repository
+      # (releases/latest.json). The release above is still a draft, so the
+      # version cannot be read off the API. GITHUB_TOKEN deliberately cannot be
+      # used here: it has no access to another repository. CDN_DISPATCH_TOKEN
+      # must therefore be a PAT with write access to pterodactyl-china/.github.
+      - name: Update release manifest (pterodactyl-china/.github)
         if: ${{ !contains(github.ref_name, 'rc') && !contains(github.ref_name, 'beta') && !contains(github.ref_name, 'alpha') }}
         env:
-          GH_TOKEN: ${{ secrets.CDN_DISPATCH_TOKEN }}
+          GH_TOKEN: ${{ secrets.REGISTRY_TOKEN }}
           VERSION: ${{ github.ref_name }}
         run: |
-          jq -n --arg version "$VERSION" \
-            '{event_type: "release-tagged", client_payload: {component: "wings", version: $version}}' \
-            | gh api repos/pterodactyl/pterodactyl-cdn/dispatches --input -
+          # Normalise the tag (e.g. v1.13.1.0) to the manifest format (1.13.1.0).
+          VERSION="${VERSION#v}"
+
+          # Fetch the current manifest and its blob SHA from the main branch.
+          MANIFEST="$(gh api repos/pterodactyl-china/.github/contents/releases/latest.json)"
+          SHA="$(jq -r .sha <<<"$MANIFEST")"
+
+          # Update the "wings" field and re-encode the payload to base64.
+          CONTENT="$(jq -r .content <<<"$MANIFEST" | base64 -d | jq --arg v "$VERSION" '.wings = $v' | base64 -w 0)"
+
+          # Commit the updated manifest back to the main branch.
+          gh api -X PUT repos/pterodactyl-china/.github/contents/releases/latest.json \
+            -f message="chore(release): bump wings version to ${VERSION}" \
+            -f content="$CONTENT" \
+            -f sha="$SHA" \
+            -f branch="main"
