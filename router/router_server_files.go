@@ -463,7 +463,7 @@ func postServerDecompressFiles(c *gin.Context) {
 
 	s := middleware.ExtractServer(c)
 	lg := middleware.ExtractLogger(c).WithFields(log.Fields{"root_path": data.RootPath, "file": data.File})
-	
+
 	// Check if there's enough space for decompression. This uses a 5-second timeout
 	// to avoid delays on large archives - if it times out, decompression proceeds
 	// with incremental space checking during extraction.
