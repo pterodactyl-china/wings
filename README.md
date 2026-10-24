@@ -9,6 +9,12 @@ Wings 是 Pterodactyl 的服务器控制层，专为快速变化的游戏行业�
 
 此外，Wings 附带一个内置的 SFTP 服务器，使您的系统不受 Pterodactyl 特定依赖项的影响，并允许用户使用他们通常用于访问面板的相同凭据进行身份验证。
 
+## Pterodactyl v2 即将到来
+
+Wings 目前已经稳定，并将继续作为 Pterodactyl 的守护进程：即将发布的 Panel v2 依然使用同一份 Wings。
+
+[![观看：Pterodactyl v2 介绍](.github/assets/v2-video.jpg)](https://www.youtube.com/watch?v=1ER4kv0jVEU)
+
 ## 赞助商
 衷心感谢以下赞助商为翼龙中国的发展提供资金支持。
 [有兴趣成为赞助商吗？](https://afdian.net/a/vlssu)
@@ -25,6 +31,7 @@ Wings 是 Pterodactyl 的服务器控制层，专为快速变化的游戏行业�
 * 或者，[通过 KOOK](https://kook.top/0Grsf5) 或 [通过 翼龙中国社区](https://bbs.pterodactyl.top) 来获得更多帮助
 
 ## 报告问题
+
 请在翼龙官方 [pterodactyl/panel](https://github.com/pterodactyl/panel) 仓库来报告 Wings 的任何问题或提出功能请求。此外，该仓库中列出的 [安全策略](https://github.com/pterodactyl/panel/security/policy) 也适用于 Wings。
 
 翼龙中国不接受非汉化修复的一类问题
