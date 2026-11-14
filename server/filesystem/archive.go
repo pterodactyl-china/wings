@@ -311,6 +311,17 @@ func (a *Archive) addToArchive(dirfd int, name, relative string, entry ufs.DirEn
 	}
 	header.Name = relative
 
+	// Go's tar writer falls back to the PAX format whenever a name contains
+	// non-ASCII characters. PAX keeps the real name in an extension record and
+	// only writes an ASCII placeholder into the main header, so tools that do
+	// not read PAX records (WinRAR, Bandizip, ...) end up with the Chinese part
+	// stripped from the name: "中文.jar" turns into ".jar". The GNU format
+	// writes the raw UTF-8 bytes into the header itself, which keeps the name
+	// intact everywhere, and uses long name records for paths over 100 bytes.
+	if !isASCII(relative) {
+		header.Format = tar.FormatGNU
+	}
+
 	// Write the tar FileInfoHeader to the archive.
 	if err := a.w.WriteHeader(header); err != nil {
 		return errors.WrapIff(err, "failed to write tar#FileInfoHeader for '%s'", name)
@@ -347,4 +358,14 @@ func (a *Archive) addToArchive(dirfd int, name, relative string, entry ufs.DirEn
 		return errors.WrapIff(err, "failed to copy '%s' to archive", header.Name)
 	}
 	return nil
+}
+
+// isASCII reports whether the given string contains only ASCII characters.
+func isASCII(s string) bool {
+	for i := 0; i < len(s); i++ {
+		if s[i] >= 0x80 {
+			return false
+		}
+	}
+	return true
 }

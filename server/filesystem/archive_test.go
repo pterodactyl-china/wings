@@ -1,10 +1,14 @@
 package filesystem
 
 import (
+	"compress/gzip"
 	"context"
+	"fmt"
+	"io"
 	iofs "io/fs"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -124,6 +128,96 @@ func TestArchive_Stream(t *testing.T) {
 			g.Assert(a.Create(context.Background(), archivePath)).IsNotNil()
 		})
 	})
+}
+
+// rawArchiveEntries returns the typeflag and name of every header written to the
+// given tar.gz archive, reading the blocks as they are stored on disk rather
+// than going through a reader that understands PAX extension records.
+func rawArchiveEntries(t *testing.T, archivePath string) [][2]string {
+	t.Helper()
+
+	f, err := os.Open(archivePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
+
+	gr, err := gzip.NewReader(f)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer gr.Close()
+
+	data, err := io.ReadAll(gr)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	var entries [][2]string
+	for off := 0; off+512 <= len(data); {
+		blk := data[off : off+512]
+		if blk[0] == 0 {
+			break
+		}
+
+		name := blk[0:100]
+		if i := strings.IndexByte(string(name), 0); i >= 0 {
+			name = name[:i]
+		}
+		var size int
+		if _, err := fmt.Sscanf(strings.Trim(string(blk[124:136]), "\x00 "), "%o", &size); err != nil {
+			t.Fatalf("failed to parse size field: %s", err)
+		}
+		entries = append(entries, [2]string{string(blk[156:157]), string(name)})
+
+		off += 512 + (size+511)/512*512
+	}
+	return entries
+}
+
+// TestArchive_Stream_NonASCIINames ensures names containing characters outside
+// of ASCII are stored in the tar header itself rather than only inside PAX
+// extension records. Tools that do not understand PAX (WinRAR, Bandizip, ...)
+// otherwise show the placeholder name from the main header, which has all of
+// the non-ASCII characters removed.
+func TestArchive_Stream_NonASCIINames(t *testing.T) {
+	fs, rfs := NewFs()
+	t.Cleanup(func() {
+		_ = fs.TruncateRootDirectory()
+	})
+
+	if err := fs.CreateDirectory("文件夹", "/"); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"中文.jar", "文件夹/测试.txt"} {
+		r := strings.NewReader("hello, world!\n")
+		if err := fs.Write(name, r, r.Size(), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	a := &Archive{Filesystem: fs}
+	archivePath := filepath.Join(rfs.root, "archive.tar.gz")
+	if err := a.Create(context.Background(), archivePath); err != nil {
+		t.Fatal(err)
+	}
+
+	entries := rawArchiveEntries(t, archivePath)
+
+	names := make([]string, 0, len(entries))
+	for _, e := range entries {
+		switch e[0] {
+		case "x", "g":
+			t.Fatalf("archive contains a PAX extension header for %q, names must be stored directly in the header", e[1])
+		}
+		names = append(names, e[1])
+	}
+
+	sort.Strings(names)
+	expected := []string{"中文.jar", "文件夹/测试.txt"}
+	if !reflect.DeepEqual(names, expected) {
+		t.Fatalf("expected entry names %q, got %q", expected, names)
+	}
 }
 
 func getFiles(f iofs.ReadDirFS, name string) ([]string, error) {
